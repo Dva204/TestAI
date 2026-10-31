@@ -1,0 +1,64 @@
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Build and package artifacts
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Jupyter / Kaggle temporary files
+.ipynb_checkpoints/
+kaggle/working/
+kaggle/input/
+
+# Streamlit local secrets
+.streamlit/secrets.toml
+
+# Environment variables and local credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+credentials.json
+
+# Generated NLP test reports
+nlp_report.json
+nlp_report_*.json
+
+# Logs, temporary files and local databases
+*.log
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+*.sqlite
+*.sqlite3
+
+# IDE settings
+.vscode/
+.idea/
+*.code-workspace
+
+# Operating-system files
+.DS_Store
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
