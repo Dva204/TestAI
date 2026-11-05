@@ -20,10 +20,15 @@ def load_resources():
     if missing := required - set(bundle):
         raise ValueError(f"Model bundle thiếu khóa: {sorted(missing)}")
     features = list(bundle["feature_names"])
-    if len(features) != 450:
-        raise ValueError(f"Cần 450 đặc trưng, nhận được {len(features)}")
+    if not features:
+        raise ValueError("Model bundle không chứa đặc trưng nào")
     mapping_path = MODEL_DIR / "disease_specialty_map_v2.csv"
-    mapping = pd.read_csv(mapping_path, encoding="utf-8-sig")
+    if mapping_path.exists():
+        mapping = pd.read_csv(mapping_path, encoding="utf-8-sig")
+    elif isinstance(bundle["disease_map"], pd.DataFrame):
+        mapping = bundle["disease_map"]
+    else:
+        mapping = pd.DataFrame(bundle["disease_map"])
     return bundle, bundle["model"], features, mapping
 
 
@@ -84,30 +89,6 @@ def predict(vector):
     probabilities = model.predict_proba(frame)[0]
     probabilities = probabilities.astype(float, copy=True)
 
-    pediatric_evidence_features = {
-        "age_newborn",
-        "age_infant",
-        "age_child",
-        "age_adolescent",
-        "child_patient",
-        "newborn_patient",
-    }
-    has_pediatric_evidence = any(
-        vector.get(feature, 0) == 1
-        for feature in pediatric_evidence_features
-    )
-
-    # Không cho model tự suy đoán bệnh nhi chỉ từ triệu chứng chung như ho/sốt.
-    # Khi người dùng không nói là trẻ em, loại các lớp thuộc khoa Nhi rồi chuẩn
-    # hóa lại xác suất của các bệnh còn đủ điều kiện.
-    if not has_pediatric_evidence:
-        for index, disease_class in enumerate(model.classes_):
-            info = mapping_lookup.get(str(disease_class))
-            if info and info["specialty"] == "Nhi":
-                probabilities[index] = 0.0
-        remaining_probability = probabilities.sum()
-        if remaining_probability > 0:
-            probabilities /= remaining_probability
     disease_predictions = []
     specialty_scores = {
         specialty: 0.0
@@ -141,7 +122,6 @@ def predict(vector):
     return {
         "diseases": disease_predictions,
         "specialties": specialty_predictions,
-        "pediatric_evidence": has_pediatric_evidence,
     }
 
 
@@ -197,14 +177,15 @@ def show_result(result, extraction):
             f"({evidence['score'] * 100:.0f}% trên {evidence['support']} mẫu có dấu hiệu này)."
         )
 
-    if not result["pediatric_evidence"]:
-        st.caption(
-            "Khoa Nhi không được tính vào xếp hạng vì chưa có thông tin cho thấy "
-            "người bệnh là trẻ em. Hãy chọn nhóm tuổi hoặc ghi tuổi trong mô tả nếu cần."
-        )
-
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Bệnh gợi ý", first_disease["name"])
+    # Do not present a disease name when the top probability is only noise:
+    # e.g. "nôn ra máu" must not be labelled "Tắc ruột" at 9.5%.
+    disease_name = (
+        first_disease["name"]
+        if first_disease["probability"] >= 0.15
+        else "Chưa đủ dữ liệu"
+    )
+    c1.metric("Bệnh gợi ý", disease_name)
     c2.metric("Độ tin cậy bệnh", f"{first_disease['probability'] * 100:.1f}%")
     c3.metric("Khoa nên khám", routed_specialty)
     c4.metric(
@@ -260,7 +241,7 @@ def show_result(result, extraction):
 
 st.title("Hệ thống NLP gợi ý bệnh và chuyên khoa")
 st.caption(
-    "Model v2: 100 bệnh, 450 đặc trưng, 5 chuyên khoa. "
+    "Model v2: 160 bệnh, 849 đặc trưng, 5 chuyên khoa (Mắt, Nội tổng quát, Ngoại, Răng Hàm Mặt, Tai Mũi Họng). "
     "Kết quả hỗ trợ chọn khoa, không thay thế chẩn đoán của bác sĩ."
 )
 
@@ -276,12 +257,12 @@ with tab_nlp:
     )
     text = st.text_area(
         "Triệu chứng",
-        placeholder="Ví dụ: Bé trai 6 tuổi sốt cao 2 ngày, ho, thở nhanh và rút lõm lồng ngực.",
+        placeholder="Ví dụ: Đau nhức mắt phải đột ngột, đỏ mắt, nhìn mờ và thấy quầng sáng xung quanh đèn.",
         height=140,
     )
 
     c1, c2, c3, c4, c5 = st.columns(5)
-    age = c1.selectbox("Nhóm tuổi", ["", "age_newborn", "age_infant", "age_child", "age_adolescent", "age_adult", "age_older_adult"], format_func=lambda x: {"": "Tự nhận diện", "age_newborn": "Sơ sinh", "age_infant": "Nhũ nhi", "age_child": "Trẻ em", "age_adolescent": "Vị thành niên", "age_adult": "Người lớn", "age_older_adult": "Cao tuổi"}[x])
+    age = c1.selectbox("Nhóm tuổi", ["", "age_child", "age_adolescent", "age_adult", "age_older_adult"], format_func=lambda x: {"": "Tự nhận diện", "age_child": "Trẻ em", "age_adolescent": "Vị thành niên", "age_adult": "Người lớn", "age_older_adult": "Cao tuổi"}[x])
     sex = c2.selectbox("Giới tính", ["", "sex_female", "sex_male"], format_func=lambda x: {"": "Không khai báo", "sex_female": "Nữ", "sex_male": "Nam"}[x])
     duration = c3.selectbox("Thời gian", ["", "duration_hours", "duration_1_3_days", "duration_4_7_days", "duration_1_4_weeks", "duration_over_4_weeks"], format_func=lambda x: {"": "Tự nhận diện", "duration_hours": "Vài giờ", "duration_1_3_days": "1–3 ngày", "duration_4_7_days": "4–7 ngày", "duration_1_4_weeks": "1–4 tuần", "duration_over_4_weeks": "Trên 4 tuần"}[x])
     onset = c4.selectbox("Khởi phát", ["", "onset_sudden", "onset_gradual", "onset_after_meal", "onset_after_trauma", "onset_after_infection"], format_func=lambda x: {"": "Tự nhận diện", "onset_sudden": "Đột ngột", "onset_gradual": "Từ từ", "onset_after_meal": "Sau ăn", "onset_after_trauma": "Sau chấn thương", "onset_after_infection": "Sau nhiễm bệnh"}[x])

@@ -88,7 +88,7 @@ CASES = (
     # Cảnh báo cấp cứu
     Case("co-giat", "Bệnh nhân lên cơn giật", expected_red_flags=("Co giật",)),
     Case("dot-quy", "Đột ngột méo miệng và liệt nửa người", expected_red_flags=("Dấu hiệu đột quỵ",)),
-    Case("xuat-huyet", "Nôn ra máu", ("vomiting",), expected_red_flags=("Xuất huyết tiêu hóa",)),
+    Case("xuat-huyet", "Nôn ra máu", ("vomiting_blood",), expected_red_flags=("Xuất huyết tiêu hóa",)),
     Case("mat-thinh-luc", "Mất thính lực đột ngột", expected_red_flags=("Mất thính lực đột ngột",)),
     # Dữ liệu từ các ô lựa chọn trên giao diện
     Case("structured", "đau đầu", ("headache", "age_adult", "severity_moderate"), structured={"age": "age_adult", "severity": "severity_moderate"}),
